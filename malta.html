@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planer Malty - Vercel Secure</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #app-container { display: flex; height: 100vh; width: 100vw; }
+
+        /* SIDEBAR */
+        #sidebar { width: 380px; background: #f8f9fa; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 1000; }
+        #sidebar-header { padding: 15px; background: #212529; color: white; text-align: center; }
+        #status-text { font-size: 0.7rem; color: #4cd137; margin-top: 5px; height: 1em; }
+
+        /* SEARCH */
+        #search-box { padding: 10px; background: #fff; border-bottom: 1px solid #ddd; display: flex; gap: 5px; }
+        #search-input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        #search-btn { padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 70px; }
+        #search-btn:hover { background: #0056b3; }
+
+        /* CONTROLS */
+        #controls { padding: 10px; display: flex; gap: 5px; background: #e9ecef; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+        .btn { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.75rem; color: white; }
+        .btn-export { background: #17a2b8; }
+        .btn-import { background: #6c757d; }
+        .btn-sync { background: #fd7e14; }
+        .btn-add-day { background: #6f42c1; flex: 100%; margin-top: 5px; } 
+
+        /* LISTS */
+        #days-container { flex-grow: 1; overflow-y: auto; padding: 10px; background: #dee2e6; }
+        .day-section { background: #f8f9fa; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 15px; overflow: hidden; }
+        .day-header { background: #343a40; color: white; padding: 10px; font-size: 0.9rem; font-weight: bold; }
+        .day-list { list-style: none; padding: 0; margin: 0; min-height: 40px; background: white; }
+        .location-item { padding: 10px; border-bottom: 1px solid #eee; background: white; cursor: grab; position: relative; border-left: 6px solid #ccc; display: flex; flex-direction: column; }
+        .location-item:hover { background: #f1f3f5; }
+        
+        /* CATEGORIES */
+        .cat-nocleg { border-left-color: #007bff; }
+        .cat-jedzenie { border-left-color: #fd7e14; }
+        .cat-zabytki { border-left-color: #dc3545; }
+        .cat-natura { border-left-color: #28a745; }
+        .cat-inne { border-left-color: #6c757d; }
+        .location-item strong { font-size: 0.9rem; color: #333; display: flex; align-items: center; gap: 5px; }
+        .badge-home { background: #28a745; color: white; font-size: 0.65rem; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+
+        .delete-btn { position: absolute; top: 8px; right: 8px; border: none; background: none; color: #dc3545; cursor: pointer; font-size: 1.1rem; }
+
+        /* MAP */
+        #map { flex-grow: 1; }
+        .custom-marker { transition: transform 0.2s; }
+        .custom-marker:hover { transform: scale(1.2); z-index: 9999; }
+        .popup-add-btn { display: block; width: 100%; margin-top: 8px; padding: 6px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center; }
+        .popup-add-btn:hover { background: #218838; }
+
+        /* MODALS */
+        #add-modal, #login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 320px; display: flex; flex-direction: column; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="modal-content" style="text-align: center; background: #343a40; color: white;">
+            <h2>Planer Podróży</h2>
+            <div id="loading-config" style="margin-bottom: 10px; color: #adb5bd; font-size: 0.9rem;">Łączenie z chmurą...</div>
+            <input type="text" id="access-code-input" placeholder="Wpisz kod trasy..." style="padding:10px; display:none;">
+            <button class="btn" id="login-btn" style="background: #007bff; display:none;" onclick="handleLogin()">Otwórz mapę</button>
+        </div>
+    </div>
+
+    <div id="add-modal" style="display:none;">
+        <div class="modal-content">
+            <h3>Dodaj punkt</h3>
+            <input type="text" id="new-name" placeholder="Nazwa miejsca">
+            <select id="new-category">
+                <option value="Zabytki">Zabytki</option>
+                <option value="Nocleg">Nocleg (BAZA)</option>
+                <option value="Jedzenie">Jedzenie</option>
+                <option value="Natura">Natura</option>
+                <option value="Inne">Inne</option>
+            </select>
+            <select id="new-day-select"></select>
+            <textarea id="new-desc" placeholder="Notatki..." style="height:60px;"></textarea>
+            <button class="btn" style="background: #28a745;" onclick="confirmAdd()">Zapisz</button>
+            <button class="btn" style="background: #6c757d;" onclick="closeModal()">Anuluj</button>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <h2 id="display-code">Trasa</h2>
+                <div id="status-text">Czekam...</div>
+            </div>
+            <div id="search-box">
+                <input type="text" id="search-input" placeholder="Szukaj (np. Sliema)..." onkeypress="handleSearchEnter(event)">
+                <button id="search-btn" onclick="searchDirect()">Szukaj</button>
+            </div>
+            <div id="controls">
+                <button class="btn btn-export" onclick="exportJSON()">Eksport</button>
+                <button class="btn btn-import" onclick="document.getElementById('file-input').click()">Import</button>
+                <button class="btn btn-sync" onclick="syncFromDB()">Sync</button>
+                <button class="btn btn-add-day" onclick="addNewDay()">+ Dodaj Dzień</button>
+                <input type="file" id="file-input" style="display:none" accept=".json" onchange="importJSON(this)">
+            </div>
+            <div id="days-container"></div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+    <script>
+        // --- 1. ZMIENNE GLOBALNE ---
+        let CLIENT = null; // Będzie zainicjowany po pobraniu kluczy
+        let USER_CODE = null;
+        let locations = [];
+        let maxDay = 1;
+        let tempLatLng = null;
+        let lastSearchResultName = ""; 
+
+        const map = L.map('map').setView([35.917973, 14.409943], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // --- 2. INICJALIZACJA (POBIERANIE KLUCZY Z VERCEL) ---
+        // Ta funkcja uruchamia się automatycznie przy starcie
+        (async function initApp() {
+            try {
+                // Pobieramy klucze z naszego pliku /api/secrets.js
+                // Na komputerze to może zwrócić błąd (bo nie ma serwera), 
+                // ale na Vercel zadziała.
+                const response = await fetch('/api/secrets');
+                
+                if(!response.ok) throw new Error("Brak API");
+
+                const secrets = await response.json();
+                
+                if (secrets.url && secrets.key) {
+                    // Mamy klucze! Inicjujemy Supabase
+                    CLIENT = window.supabase.createClient(secrets.url, secrets.key);
+                    
+                    // Pokazujemy formularz logowania
+                    document.getElementById('loading-config').style.display = 'none';
+                    document.getElementById('access-code-input').style.display = 'inline-block';
+                    document.getElementById('login-btn').style.display = 'inline-block';
+                } else {
+                    throw new Error("Puste klucze");
+                }
+            } catch (err) {
+                // Fallback dla wersji lokalnej (na komputerze bez Vercel)
+                // Jeśli chcesz testować lokalnie, wpisz klucze tu, ale NIE WYSYŁAJ TEGO NA GITHUB
+                // alert("Tryb lokalny lub błąd konfiguracji: " + err.message);
+                document.getElementById('loading-config').innerText = "Błąd konfiguracji kluczy (sprawdź Vercel)";
+            }
+        })();
+
+        // --- 3. WYSZUKIWANIE ---
+        async function searchDirect() {
+            const query = document.getElementById('search-input').value;
+            const btn = document.getElementById('search-btn');
+            if(!query) return;
+            btn.innerText = "...";
+            const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=mt&q=${encodeURIComponent(query)}`;
+            try {
+                const response = await fetch(url);
+                const results = await response.json();
+                btn.innerText = "Szukaj";
+                if (results && results.length > 0) {
+                    const best = results[0];
+                    const lat = parseFloat(best.lat);
+                    const lon = parseFloat(best.lon);
+                    lastSearchResultName = best.name || best.display_name.split(',')[0];
+                    tempLatLng = { lat: lat, lng: lon };
+                    map.setView([lat, lon], 14);
+                    L.popup().setLatLng([lat, lon]).setContent(`<b>${best.display_name}</b><br><button class="popup-add-btn" onclick="openAddModalFromSearch()">➕ Dodaj to miejsce</button>`).openOn(map);
+                } else { alert("Nie znaleziono miejsca."); }
+            } catch (err) { btn.innerText = "Szukaj"; alert("Błąd połączenia."); }
+        }
+
+        function openAddModalFromSearch() {
+            map.closePopup();
+            populateDaySelect();
+            document.getElementById('new-name').value = lastSearchResultName;
+            document.getElementById('new-desc').value = "";
+            document.getElementById('add-modal').style.display = 'flex';
+        }
+        function handleSearchEnter(e) { if(e.key === 'Enter') searchDirect(); }
+
+        // --- 4. LOGOWANIE I BAZA ---
+        function handleLogin() { 
+            const code = document.getElementById('access-code-input').value;
+            if(code && CLIENT) {
+                USER_CODE = code;
+                document.getElementById('login-overlay').style.display = 'none';
+                document.getElementById('display-code').innerText = code;
+                syncFromDB();
+            } else {
+                alert("Wpisz kod lub poczekaj na załadowanie kluczy!");
+            }
+        }
+
+        async function syncFromDB() {
+            updateStatus("Pobieranie...");
+            const { data, error } = await CLIENT.from('locations').select('*').eq('user_code', USER_CODE).order('day_number', {ascending: true}).order('order_index', {ascending: true});
+            if(!error) {
+                locations = data;
+                if(locations.length > 0) {
+                    const dbMax = locations.reduce((max, p) => p.day_number > max ? p.day_number : max, 1);
+                    maxDay = dbMax;
+                }
+                renderDays();
+                updateStatus("Gotowe");
+            } else { updateStatus("Błąd bazy!"); }
+        }
+
+        async function syncOrderToDB() {
+            updateStatus("Aktualizacja...");
+            const updates = [];
+            document.querySelectorAll('.day-list').forEach(dayList => {
+                const dayNum = parseInt(dayList.getAttribute('data-day'));
+                const items = dayList.querySelectorAll('.location-item');
+                items.forEach((item, index) => {
+                    const id = parseInt(item.getAttribute('data-id'));
+                    const loc = locations.find(l => l.id === id);
+                    if(loc) {
+                        loc.day_number = dayNum;
+                        loc.order_index = index;
+                        updates.push({ id: id, user_code: USER_CODE, name: loc.name, lat: loc.lat, lng: loc.lng, category: loc.category, description: loc.description, day_number: dayNum, order_index: index });
+                    }
+                });
+            });
+            renderDays();
+            const { error } = await CLIENT.from('locations').upsert(updates);
+            if(!error) updateStatus("Zapisano"); else updateStatus("Błąd zapisu!");
+        }
+
+        // --- 5. INTERFEJS ---
+        function renderDays() {
+            const container = document.getElementById('days-container');
+            const scrollPos = container.scrollTop;
+            container.innerHTML = '';
+            for(let d = 1; d <= maxDay; d++) { createDaySection(d, container); }
+            container.scrollTop = scrollPos;
+            renderMapOnly();
+        }
+
+        function createDaySection(dayNum, container) {
+            const section = document.createElement('div');
+            section.className = 'day-section';
+            section.innerHTML = `<div class="day-header">Dzień ${dayNum}</div><ul class="day-list" id="day-list-${dayNum}" data-day="${dayNum}"></ul>`;
+            container.appendChild(section);
+            const dayPoints = locations.filter(l => l.day_number === dayNum).sort((a,b) => a.order_index - b.order_index);
+            const listEl = section.querySelector('ul');
+            dayPoints.forEach((loc, idx) => {
+                const li = document.createElement('li');
+                li.className = `location-item cat-${loc.category.toLowerCase()}`;
+                li.setAttribute('data-id', loc.id);
+                let badge = idx === 0 ? '<span class="badge-home">START</span>' : '';
+                li.innerHTML = `<strong>${loc.name} ${badge}</strong><span style="font-size:0.75rem; color:#666;">${loc.description || ''}</span><button class="delete-btn" onclick="deleteLoc(${loc.id})">&times;</button>`;
+                li.onmouseenter = () => { highlightMarker(loc.id, true); map.panTo([loc.lat, loc.lng], {animate: true, duration: 0.5}); };
+                li.onmouseleave = () => highlightMarker(loc.id, false);
+                li.onclick = (e) => { if(e.target.tagName !== 'BUTTON') { map.flyTo([loc.lat, loc.lng], 15); highlightMarker(loc.id, true); } };
+                listEl.appendChild(li);
+            });
+            Sortable.create(listEl, { group: 'shared-days', animation: 150, onEnd: () => syncOrderToDB() });
+        }
+
+        function addNewDay() { maxDay++; renderDays(); }
+        function renderMapOnly() {
+            map.eachLayer(l => { if(l instanceof L.Marker || l instanceof L.Polyline) map.removeLayer(l); });
+            const colors = ['#007bff', '#e83e8c', '#6f42c1', '#fd7e14', '#28a745', '#20c997'];
+            for(let d = 1; d <= maxDay; d++) {
+                const dayPoints = locations.filter(l => l.day_number === d).sort((a,b) => a.order_index - b.order_index);
+                if(dayPoints.length === 0) continue;
+                const dayColor = colors[(d-1) % colors.length];
+                const latlngs = [];
+                dayPoints.forEach((loc, idx) => {
+                    const iconHtml = `<div style="background:${dayColor}; color:white; border-radius:50%; width:24px; height:24px; display:flex; align-items:center; justify-content:center; border:2px solid white; font-weight:bold;">${idx+1}</div>`;
+                    const icon = L.divIcon({ className: 'custom-marker', html: iconHtml, iconSize: [24,24], iconAnchor: [12,12] });
+                    const marker = L.marker([loc.lat, loc.lng], {icon}).addTo(map);
+                    marker.bindPopup(`<b>Dzień ${d} (${idx+1}): ${loc.name}</b><br>${loc.description}`);
+                    marker._internalId = loc.id;
+                    latlngs.push([loc.lat, loc.lng]);
+                });
+                if(latlngs.length > 1) { latlngs.push(latlngs[0]); L.polyline(latlngs, { color: dayColor, weight: 4, opacity: 0.7 }).addTo(map).bindPopup(`Trasa Dzień ${d}`); }
+            }
+        }
+
+        // --- 6. DODAWANIE ---
+        map.on('click', (e) => {
+            tempLatLng = e.latlng;
+            document.getElementById('new-name').value = ""; 
+            populateDaySelect();
+            document.getElementById('add-modal').style.display = 'flex';
+        });
+
+        function populateDaySelect() {
+            const daySelect = document.getElementById('new-day-select');
+            daySelect.innerHTML = '';
+            for(let i=1; i<=maxDay; i++) {
+                const opt = document.createElement('option');
+                opt.value = i; opt.text = `Dzień ${i}`; daySelect.appendChild(opt);
+            }
+        }
+
+        async function confirmAdd() {
+            const name = document.getElementById('new-name').value;
+            const cat = document.getElementById('new-category').value;
+            const desc = document.getElementById('new-desc').value;
+            const day = parseInt(document.getElementById('new-day-select').value);
+            if(!name) return;
+            const existingInDay = locations.filter(l => l.day_number === day).length;
+            const { data, error } = await CLIENT.from('locations').insert([{
+                user_code: USER_CODE, name, category: cat, description: desc,
+                lat: tempLatLng.lat, lng: tempLatLng.lng, day_number: day, order_index: existingInDay
+            }]).select();
+            if(!error) { locations.push(data[0]); renderDays(); closeModal(); }
+        }
+        function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
+        
+        async function deleteLoc(id) {
+            if(!confirm("Usunąć?")) return;
+            await CLIENT.from('locations').delete().eq('id', id);
+            locations = locations.filter(l => l.id !== id);
+            renderDays();
+        }
+
+        // --- HELPERS ---
+        function updateStatus(msg) { document.getElementById('status-text').innerText = msg; }
+        function highlightMarker(id, on) { map.eachLayer(l => { if(l instanceof L.Marker && l._internalId === id) { if(on) l.openPopup(); else l.closePopup(); } }); }
+        
+        function exportJSON() {
+            const data = locations.map(l => ({ name:l.name, lat:l.lat, lng:l.lng, cat:l.category, desc:l.description, day:l.day_number }));
+            const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `trasa_${USER_CODE}.json`; a.click();
+        }
+        async function importJSON(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                if(confirm("Nadpisać trasę?")) {
+                    const json = JSON.parse(e.target.result);
+                    await CLIENT.from('locations').delete().eq('user_code', USER_CODE);
+                    const insertData = json.map((p, i) => ({
+                        user_code: USER_CODE, name: p.name, lat: p.lat, lng: p.lng, category: p.cat, description: p.desc, day_number: p.day || 1, order_index: i
+                    }));
+                    await CLIENT.from('locations').insert(insertData);
+                    syncFromDB();
+                }
+            }
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
