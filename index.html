@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Planer Malty - Mobile Friendly</title>
+    <title>Planer Malty - Drag Handle</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
@@ -12,13 +12,13 @@
             --sidebar-width: 380px;
             --primary-color: #007bff;
             --dark-bg: #212529;
+            --handle-color: #adb5bd;
         }
 
         body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, Segoe UI, sans-serif; overflow: hidden; }
-        
         #app-container { display: flex; height: 100vh; width: 100vw; position: relative; }
 
-        /* --- SIDEBAR (RESPONSYWNY) --- */
+        /* --- SIDEBAR --- */
         #sidebar { 
             width: var(--sidebar-width); 
             background: #f8f9fa; 
@@ -29,84 +29,92 @@
             transition: transform 0.3s ease;
         }
 
-        /* --- MAPA --- */
         #map { flex-grow: 1; z-index: 1; height: 100%; }
 
-        /* --- PRZYCISK MENU DLA TELEFONU --- */
+        /* --- MOBILE TOGGLE --- */
         #mobile-toggle {
             display: none;
             position: absolute;
-            bottom: 20px;
-            left: 20px;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 3000;
             background: var(--dark-bg);
             color: white;
             border: none;
-            padding: 15px 25px;
+            padding: 15px 30px;
             border-radius: 50px;
             font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        @media (max-width: 768px) {
+            #sidebar { position: absolute; left: 0; top: 0; height: 100%; width: 100%; transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+            #mobile-toggle { display: block; }
+        }
+
+        /* --- ELEMENTY LISTY --- */
+        #days-container { flex-grow: 1; overflow-y: auto; padding: 10px; background: #e9ecef; }
+        .day-section { background: white; border-radius: 12px; margin-bottom: 15px; border: 1px solid #ddd; overflow: hidden; }
+        .day-header { background: #333; color: white; padding: 12px; font-weight: bold; }
+        
+        .location-item { 
+            padding: 0; /* Padding przeniesiony do wewnętrznego kontenera dla lepszego D&D */
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            align-items: center;
+            background: white;
+            border-left: 8px solid #ccc;
+        }
+        
+        /* Kontener na tekst */
+        .item-content {
+            flex-grow: 1;
+            padding: 15px 10px 15px 15px;
             cursor: pointer;
         }
 
-        /* --- RESPONSYWNOŚĆ (EKRAN TELEFONU) --- */
-        @media (max-width: 768px) {
-            #sidebar {
-                position: absolute;
-                left: 0;
-                top: 0;
-                height: 100%;
-                width: 100%;
-                transform: translateX(-100%); /* Ukryty poza ekranem */
-            }
-            #sidebar.open { transform: translateX(0); }
-            #mobile-toggle { display: block; }
-            #sidebar-header h2 { font-size: 1.5rem; }
+        /* --- UCHWYT DRAG & DROP --- */
+        .drag-handle {
+            padding: 15px 20px;
+            color: var(--handle-color);
+            cursor: grab;
+            font-size: 20px;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
+        .drag-handle:active { cursor: grabbing; }
 
-        /* --- STYLIZACJA ELEMENTÓW --- */
+        .cat-nocleg { border-left-color: #007bff; }
+        .cat-zabytki { border-left-color: #dc3545; }
+        .badge-home { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; vertical-align: middle; }
+
+        /* HEADER & SEARCH */
         #sidebar-header { padding: 20px; background: var(--dark-bg); color: white; text-align: center; }
         #search-box { padding: 10px; display: flex; gap: 5px; background: white; border-bottom: 1px solid #ddd; }
         #search-input { flex-grow: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-        
         #controls { padding: 10px; display: flex; gap: 5px; flex-wrap: wrap; background: #eee; }
-        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; font-size: 14px; }
-        
-        #days-container { flex-grow: 1; overflow-y: auto; padding: 10px; background: #e9ecef; }
-        .day-section { background: white; border-radius: 12px; margin-bottom: 15px; border: 1px solid #ddd; overflow: hidden; }
-        .day-header { background: #333; color: white; padding: 12px; font-weight: bold; display: flex; justify-content: space-between; }
-        
-        .location-item { 
-            padding: 15px; border-bottom: 1px solid #eee; display: flex; 
-            flex-direction: column; position: relative; border-left: 8px solid #ccc;
-        }
-        .cat-nocleg { border-left-color: #007bff; }
-        .cat-zabytki { border-left-color: #dc3545; }
-        .badge-home { background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
 
         /* MODALE */
-        #login-overlay, #add-modal { 
-            position: fixed; inset: 0; background: rgba(0,0,0,0.85); 
-            z-index: 5000; display: flex; justify-content: center; align-items: center; 
-        }
+        #login-overlay, #add-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 5000; display: flex; justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 350px; }
-        .modal-content input, .modal-content select, .modal-content textarea { 
-            width: 100%; padding: 12px; margin-bottom: 10px; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc;
-        }
-
-        .popup-add-btn { background: #28a745; color: white; border: none; padding: 10px; border-radius: 5px; width: 100%; font-weight: bold; margin-top: 10px; }
+        .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin-bottom: 10px; box-sizing: border-box; border-radius: 8px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
 
-    <button id="mobile-toggle" onclick="toggleSidebar()">☰ LISTA MIEJSC</button>
+    <button id="mobile-toggle" onclick="toggleSidebar()">☰ MENU TRASY</button>
 
     <div id="login-overlay">
         <div class="modal-content" style="text-align: center;">
             <h2 style="color:black">Planer Malty</h2>
-            <p id="status-init" style="color:#666">Łączenie z bazą...</p>
-            <input type="text" id="access-code-input" placeholder="Kod Twojej trasy" style="display:none;">
-            <button class="btn" id="login-btn" style="background: #007bff; width: 100%; display:none;" onclick="handleLogin()">Wczytaj trasę</button>
+            <p id="status-init" style="color:#666">Pobieranie konfiguracji...</p>
+            <input type="text" id="access-code-input" placeholder="Wpisz kod trasy" style="display:none;">
+            <button class="btn" id="login-btn" style="background: #007bff; width: 100%; display:none;" onclick="handleLogin()">Otwórz</button>
         </div>
     </div>
 
@@ -122,7 +130,7 @@
             </select>
             <select id="new-day-select"></select>
             <textarea id="new-desc" placeholder="Notatki..."></textarea>
-            <button class="btn" style="background: #28a745; width: 100%;" onclick="confirmAdd()">Zapisz miejsce</button>
+            <button class="btn" style="background: #28a745; width: 100%;" onclick="confirmAdd()">Zapisz</button>
             <button class="btn" style="background: #666; width: 100%; margin-top: 5px;" onclick="closeModal()">Anuluj</button>
         </div>
     </div>
@@ -131,7 +139,7 @@
         <div id="sidebar">
             <div id="sidebar-header">
                 <h2 id="display-code" style="margin:0">Trasa</h2>
-                <div id="status-text" style="font-size:12px; color:#4cd137">Oczekiwanie...</div>
+                <div id="status-text" style="font-size:12px; color:#4cd137">Synchronizacja...</div>
             </div>
             
             <div id="search-box">
@@ -140,14 +148,13 @@
             </div>
 
             <div id="controls">
-                <button class="btn" style="background:#17a2b8; flex:1" onclick="exportJSON()">Eksport</button>
                 <button class="btn" style="background:#fd7e14; flex:1" onclick="syncFromDB()">Sync</button>
-                <button class="btn" style="background:#6f42c1; width:100%" onclick="addNewDay()">+ Dodaj kolejny dzień</button>
+                <button class="btn" style="background:#6f42c1; flex:2" onclick="addNewDay()">+ Nowy dzień</button>
             </div>
             
             <div id="days-container"></div>
             
-            <button class="btn" style="background:#333; margin:10px; display:block;" id="close-menu-btn" onclick="toggleSidebar()">Powrót do mapy</button>
+            <button class="btn" style="background:#333; margin:15px; display:block;" id="close-menu-btn" onclick="toggleSidebar()">Zamknij menu</button>
         </div>
 
         <div id="map"></div>
@@ -169,7 +176,7 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
-        // Pobieranie kluczy z Vercel API
+        // API Init
         (async function init() {
             try {
                 const res = await fetch('/api/secrets');
@@ -179,14 +186,12 @@
                 document.getElementById('access-code-input').style.display = 'block';
                 document.getElementById('login-btn').style.display = 'block';
             } catch (e) {
-                document.getElementById('status-init').innerText = "Błąd połączenia z serwerem.";
+                document.getElementById('status-init').innerText = "Błąd API.";
             }
         })();
 
-        // Obsługa menu na telefonie
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
-            // Przy przywracaniu mapy, odśwież jej rozmiar
             setTimeout(() => map.invalidateSize(), 300);
         }
 
@@ -203,8 +208,7 @@
         async function searchDirect() {
             const query = document.getElementById('search-input').value;
             if(!query) return;
-            const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=mt&q=${encodeURIComponent(query)}`;
-            const res = await fetch(url);
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=mt&q=${encodeURIComponent(query)}`);
             const results = await res.json();
             if (results.length > 0) {
                 const best = results[0];
@@ -212,12 +216,9 @@
                 const lon = parseFloat(best.lon);
                 lastSearchResultName = best.display_name.split(',')[0];
                 tempLatLng = { lat: lat, lng: lon };
-                
-                // Na telefonie - po znalezieniu zamknij menu, żeby pokazać wynik na mapie
                 if(window.innerWidth <= 768) toggleSidebar();
-                
                 map.flyTo([lat, lon], 14);
-                L.popup().setLatLng([lat, lon]).setContent(`<b>${best.display_name}</b><br><button class="popup-add-btn" onclick="openAddModalFromSearch()">➕ Dodaj do trasy</button>`).openOn(map);
+                L.popup().setLatLng([lat, lon]).setContent(`<b>${best.display_name}</b><br><button style="background:#28a745; color:white; border:none; padding:10px; width:100%; border-radius:5px; margin-top:5px; font-weight:bold; cursor:pointer;" onclick="openAddModalFromSearch()">➕ Dodaj do trasy</button>`).openOn(map);
             }
         }
 
@@ -232,9 +233,7 @@
             updateStatus("Synchronizacja...");
             const { data } = await sbClient.from('locations').select('*').eq('user_code', USER_CODE).order('order_index');
             locations = data || [];
-            if(locations.length > 0) {
-                maxDay = locations.reduce((max, p) => p.day_number > max ? p.day_number : max, 1);
-            }
+            if(locations.length > 0) maxDay = locations.reduce((max, p) => p.day_number > max ? p.day_number : max, 1);
             renderUI();
             updateStatus("Gotowe");
         }
@@ -255,7 +254,7 @@
                     }
                 });
             });
-            renderUI();
+            renderUI(); // Natychmiastowe odświeżenie badge START
             await sbClient.from('locations').upsert(updates);
             updateStatus("Zapisano");
         }
@@ -275,16 +274,31 @@
                     const li = document.createElement('li');
                     li.className = `location-item cat-${p.category.toLowerCase()}`;
                     li.setAttribute('data-id', p.id);
-                    let badge = idx === 0 ? '<span class="badge-home">START</span>' : '';
-                    li.innerHTML = `<strong>${p.name} ${badge}</strong><span style="font-size:11px">${p.description || ''}</span>`;
                     
-                    li.onclick = () => {
+                    let badge = idx === 0 ? '<span class="badge-home">START</span>' : '';
+                    
+                    li.innerHTML = `
+                        <div class="item-content">
+                            <strong>${p.name} ${badge}</strong>
+                            <div style="font-size:11px; color:#666">${p.description || ''}</div>
+                        </div>
+                        <div class="drag-handle">☰</div>
+                    `;
+                    
+                    li.querySelector('.item-content').onclick = () => {
                         if(window.innerWidth <= 768) toggleSidebar();
                         map.flyTo([p.lat, p.lng], 15);
                     };
                     list.appendChild(li);
                 });
-                Sortable.create(list, { group: 'days', animation: 150, onEnd: syncOrderToDB });
+
+                // --- KONFIGURACJA SORTABLE Z UCHWYTEM ---
+                Sortable.create(list, { 
+                    group: 'days', 
+                    animation: 150, 
+                    handle: '.drag-handle', // <--- TYLKO ZA TO MOŻNA CIĄGNĄĆ
+                    onEnd: syncOrderToDB 
+                });
             }
             renderMapMarkers();
         }
@@ -296,7 +310,7 @@
                 const dayPoints = locations.filter(l => l.day_number === d).sort((a,b) => a.order_index - b.order_index);
                 if(dayPoints.length === 0) continue;
                 const path = [];
-                dayPoints.forEach((p, i) => {
+                dayPoints.forEach((p) => {
                     const marker = L.marker([p.lat, p.lng]).addTo(map);
                     marker.bindPopup(`<b>Dzień ${d}: ${p.name}</b>`);
                     path.push([p.lat, p.lng]);
@@ -334,21 +348,12 @@
                 description: document.getElementById('new-desc').value, lat: tempLatLng.lat, lng: tempLatLng.lng,
                 day_number: day, order_index: locations.length
             }]).select();
-            if(data) {
-                locations.push(data[0]);
-                closeModal();
-                renderUI();
-            }
+            if(data) { locations.push(data[0]); closeModal(); renderUI(); }
         }
 
         function closeModal() { document.getElementById('add-modal').style.display = 'none'; }
         function updateStatus(m) { document.getElementById('status-text').innerText = m; }
         function addNewDay() { maxDay++; renderUI(); }
-        function exportJSON() {
-            const data = locations.map(l => ({ name:l.name, lat:l.lat, lng:l.lng, cat:l.category, desc:l.description, day:l.day_number }));
-            const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `trasa_${USER_CODE}.json`; a.click();
-        }
     </script>
 </body>
 </html>
